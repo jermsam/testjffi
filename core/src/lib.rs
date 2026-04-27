@@ -1,6 +1,5 @@
 use std::sync::{Arc, Mutex};
 use uniffi;
-use anyhow::{anyhow, Result};
 use iroh::{Endpoint, EndpointAddr, endpoint::presets};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::runtime::Runtime;
@@ -43,7 +42,8 @@ impl Core {
                 .bind()
                 .await
                 .map_err(|e| e.to_string())?;
-            let addr = endpoint.addr().to_string();
+            let addr = serde_json::to_string(&endpoint.addr())
+                .map_err(|e| e.to_string())?;
 
 
             let recv_endpoint = endpoint.clone();
@@ -70,7 +70,7 @@ impl Core {
                     .ok_or("Core.start() must be called first")?
             };
 
-            let peer: EndpointAddr = peer_addr.parse::<EndpointAddr>()
+            let peer: EndpointAddr = serde_json::from_str(&peer_addr)
                 .map_err(|e| e.to_string())?;
 
             let conn = endpoint
