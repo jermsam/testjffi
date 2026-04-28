@@ -3,7 +3,10 @@ name = "test"
 version = "0.1.0"
 
 [platforms]
-enabled = ["windows"]
+enabled = [
+    "windows",
+    "macos",
+]
 
 [platforms.ios]
 deployment_target = "16.0"

@@ -6,6 +6,19 @@ use tokio::runtime::Runtime;
 
 const ALPN: &[u8] = b"sad-chat/0";
 
+#[derive(Debug, thiserror::Error, uniffi::Error)]
+#[uniffi(flat_error)]
+pub enum CoreError {
+    #[error("Endpoint error: {0}")]
+    EndpointError(String),
+    #[error("Connection error: {0}")]
+    ConnectionError(String),
+    #[error("Serialization error: {0}")]
+    SerializationError(String),
+    #[error("Core not started")]
+    NotStarted,
+}
+
 struct State {
     endpoint: Option<Endpoint>,
     messages: Vec<String>,
@@ -34,16 +47,16 @@ impl Core {
         "Iroh core ready".to_string()
     }
     
-    pub fn start(&self) -> Result<String, String> {
+    pub fn start(&self) -> Result<String, CoreError> {
         self.rt.block_on(async {
             // Your async code here
             let endpoint = Endpoint::builder(presets::N0)
                 .alpns(vec![ALPN.to_vec()])
                 .bind()
                 .await
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| CoreError::EndpointError(e.to_string()))?;
             let addr = serde_json::to_string(&endpoint.addr())
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| CoreError::SerializationError(e.to_string()))?;
 
 
             let recv_endpoint = endpoint.clone();
@@ -59,7 +72,7 @@ impl Core {
         })
     }
 
-    pub fn send_message(&self, peer_addr: String, message: String) -> Result<(), String> {
+    pub fn send_message(&self, peer_addr: String, message: String) -> Result<(), CoreError> {
         self.rt.block_on(async {
             let endpoint = {
                 self.state
@@ -67,28 +80,28 @@ impl Core {
                     .unwrap()
                     .endpoint
                     .clone()
-                    .ok_or("Core.start() must be called first")?
+                    .ok_or(CoreError::NotStarted)?
             };
 
             let peer: EndpointAddr = serde_json::from_str(&peer_addr)
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| CoreError::SerializationError(e.to_string()))?;
 
             let conn = endpoint
                 .connect(peer, ALPN)
                 .await
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| CoreError::ConnectionError(e.to_string()))?;
 
             let mut stream = conn
                 .open_uni()
                 .await
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| CoreError::ConnectionError(e.to_string()))?;
 
             stream
                 .write_all(message.as_bytes())
                 .await
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| CoreError::ConnectionError(e.to_string()))?;
 
-            stream.finish().map_err(|e| e.to_string())?;
+            stream.finish().map_err(|e| CoreError::ConnectionError(e.to_string()))?;
 
             Ok(())
         })

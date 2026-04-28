@@ -1,3 +1,7 @@
 [workspace]
 members = ["core"]
 resolver = "2"
+
+[patch.crates-io]
+ed25519 = { path = "patches/signatures/ed25519" }
+ed25519-dalek = { path = "patches/curve25519-dalek/ed25519-dalek" }
